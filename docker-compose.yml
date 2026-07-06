@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: azure-biblioteca-backend:local
+    container_name: azure-biblioteca-backend
+    environment:
+      DATABASE_URL: sqlite:////app/data/biblioteca.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    image: azure-biblioteca-frontend:local
+    container_name: azure-biblioteca-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  backend_data:

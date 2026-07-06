@@ -1,0 +1,127 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: rg-azure-biblioteca-dev
+  ACR_NAME: acrazurebibliotecadev
+  STORAGE_ACCOUNT: stazurebibliotecadev
+  BACKEND_IMAGE: azure-biblioteca-backend
+  FRONTEND_IMAGE: azure-biblioteca-frontend
+  CONTAINER_GROUP: aci-azure-biblioteca-dev
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Import FastAPI app
+        run: python -c "from backend.app.main import app; print(app.title)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform format check
+        working-directory: infra
+        run: terraform fmt -check
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: infra
+        run: terraform validate
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init
+
+      - name: Import existing Terraform resources
+        working-directory: infra
+        run: |
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+          terraform import azurerm_resource_group.main "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" || true
+          terraform import azurerm_container_registry.main "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/$ACR_NAME" || true
+          terraform import azurerm_storage_account.main "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$STORAGE_ACCOUNT" || true
+          terraform import azurerm_storage_share.backend_data "https://$STORAGE_ACCOUNT.file.core.windows.net/backend-data" || true
+          terraform import azurerm_container_group.main "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerInstance/containerGroups/$CONTAINER_GROUP" || true
+
+      - name: Ensure resource group and ACR with Terraform
+        working-directory: infra
+        run: |
+          terraform apply -auto-approve \
+            -target=azurerm_resource_group.main \
+            -target=azurerm_container_registry.main \
+            -var "resource_group_name=$RESOURCE_GROUP" \
+            -var "acr_name=$ACR_NAME" \
+            -var "storage_account_name=$STORAGE_ACCOUNT" \
+            -var "container_group_name=$CONTAINER_GROUP" \
+            -var "backend_image=$BACKEND_IMAGE" \
+            -var "frontend_image=$FRONTEND_IMAGE"
+
+      - name: Log in to ACR
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push backend
+        run: |
+          LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          docker build -t "$LOGIN_SERVER/$BACKEND_IMAGE:${{ github.sha }}" -t "$LOGIN_SERVER/$BACKEND_IMAGE:latest" backend
+          docker push "$LOGIN_SERVER/$BACKEND_IMAGE:${{ github.sha }}"
+          docker push "$LOGIN_SERVER/$BACKEND_IMAGE:latest"
+
+      - name: Build and push frontend
+        run: |
+          LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          docker build -t "$LOGIN_SERVER/$FRONTEND_IMAGE:${{ github.sha }}" -t "$LOGIN_SERVER/$FRONTEND_IMAGE:latest" frontend
+          docker push "$LOGIN_SERVER/$FRONTEND_IMAGE:${{ github.sha }}"
+          docker push "$LOGIN_SERVER/$FRONTEND_IMAGE:latest"
+
+      - name: Terraform apply
+        working-directory: infra
+        run: |
+          terraform apply -auto-approve \
+            -var "image_tag=${{ github.sha }}" \
+            -var "resource_group_name=$RESOURCE_GROUP" \
+            -var "acr_name=$ACR_NAME" \
+            -var "storage_account_name=$STORAGE_ACCOUNT" \
+            -var "container_group_name=$CONTAINER_GROUP" \
+            -var "backend_image=$BACKEND_IMAGE" \
+            -var "frontend_image=$FRONTEND_IMAGE"

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/data/
+
+# Node/Vite
+node_modules/
+dist/
+.vite/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Docker/local
+*.log
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

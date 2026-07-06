@@ -104,6 +104,98 @@ Terraform imprimira la URL publica del frontend y del backend.
 
 Si ya creaste recursos manualmente en Azure con los mismos nombres, importalos al estado de Terraform antes de aplicar o elimina esos recursos manuales para evitar conflictos.
 
+## Demostracion con Terraform
+
+Para demostrar el despliegue desde cero ante el profesor, puedes destruir los recursos y volverlos a crear. Esto elimina la instancia, el storage share y el ACR, por lo que tambien elimina la base SQLite guardada en Azure.
+
+Destruir recursos:
+
+```bash
+cd /home/jahir/azure_biblioteca/infra
+terraform destroy
+```
+
+Cuando Terraform pregunte, escribe `yes`.
+
+Volver a desplegar desde cero:
+
+```bash
+cd /home/jahir/azure_biblioteca/infra
+terraform apply -target=azurerm_resource_group.main -target=azurerm_container_registry.main
+```
+
+Despues construye y sube las imagenes:
+
+```bash
+cd /home/jahir/azure_biblioteca
+az acr login --name acrazurebibliotecadev
+
+docker build -t acrazurebibliotecadev.azurecr.io/azure-biblioteca-backend:latest backend
+docker push acrazurebibliotecadev.azurecr.io/azure-biblioteca-backend:latest
+
+docker build -t acrazurebibliotecadev.azurecr.io/azure-biblioteca-frontend:latest frontend
+docker push acrazurebibliotecadev.azurecr.io/azure-biblioteca-frontend:latest
+```
+
+Finalmente crea Azure Container Instances:
+
+```bash
+cd /home/jahir/azure_biblioteca/infra
+terraform apply
+```
+
+Para una demostracion mas rapida, no destruyas todo. Haz un cambio menor, reconstruye las imagenes, ejecuta `docker push` y luego:
+
+```bash
+cd /home/jahir/azure_biblioteca/infra
+terraform apply
+```
+
+Terraform compara el estado declarado con Azure y solo aplica cambios necesarios.
+
+## Demo desde otra computadora
+
+La forma mas simple para una demostracion es usar esta misma laptop, porque ya tiene:
+
+- Docker Desktop conectado a WSL.
+- Azure CLI con `az login`.
+- Terraform instalado en `~/.local/bin`.
+- Estado local de Terraform en `infra/terraform.tfstate`.
+
+Si usas otra computadora, tambien se puede, pero hay que preparar el entorno:
+
+1. Instalar Git, Docker, Azure CLI y Terraform.
+2. Clonar el repositorio:
+
+```bash
+git clone https://github.com/Jahir28/azure_biblioteca.git
+cd azure_biblioteca
+```
+
+3. Iniciar sesion en Azure:
+
+```bash
+az login
+az account set --subscription da09da24-1715-4fe3-b11d-636490598614
+```
+
+4. Ejecutar Docker Compose local si solo quieres probar la app:
+
+```bash
+docker compose up --build
+```
+
+5. Para administrar los recursos ya desplegados con Terraform desde otra computadora, hace falta el estado de Terraform. Este proyecto usa estado local, por lo que `infra/terraform.tfstate` no se sube a GitHub. Si no tienes ese archivo, Terraform no sabe que los recursos ya existen y puede intentar crearlos de nuevo.
+
+Opciones:
+
+- Usar la misma laptop para la demo de Terraform.
+- Copiar de forma privada `infra/terraform.tfstate` a la otra computadora.
+- Destruir los recursos desde la laptop original y recrearlos desde la nueva computadora.
+- Configurar un backend remoto de Terraform en Azure Storage para compartir estado entre equipos.
+
+Para este proyecto academico, lo mas practico es hacer la demo desde la laptop donde ya se hizo el despliegue.
+
 ## GitHub Actions
 
 El workflow ejecuta validacion en cada `push` y `pull_request`. El despliegue a Azure queda como ejecucion manual desde `workflow_dispatch`, porque requiere credenciales de Azure.

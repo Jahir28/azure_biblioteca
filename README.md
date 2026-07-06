@@ -7,7 +7,7 @@ Proyecto completo para una biblioteca con frontend Vue 3 + Vite, backend FastAPI
 - `backend/`: API FastAPI con SQLAlchemy y SQLite.
 - `frontend/`: app Vue 3 + Vite servida con Nginx en Docker.
 - `infra/`: Terraform para Azure Resource Group, ACR, Storage Share y Azure Container Instances.
-- `.github/workflows/`: pipeline de validacion, build, push y despliegue.
+- `.github/workflows/`: tres pipelines de CI/CD para backend, frontend e infraestructura.
 - `docker-compose.yml`: ejecucion local.
 
 ## Ejecucion local
@@ -198,7 +198,15 @@ Para este proyecto academico, lo mas practico es hacer la demo desde la laptop d
 
 ## GitHub Actions
 
-El workflow ejecuta validacion en cada `push` y `pull_request`. El despliegue a Azure queda como ejecucion manual desde `workflow_dispatch`, porque requiere credenciales de Azure.
+El proyecto tiene tres pipelines en GitHub Actions:
+
+1. `Backend CI`: instala dependencias Python, valida que FastAPI cargue y construye la imagen del backend.
+2. `Frontend CI`: instala dependencias Node, compila Vue/Vite y construye la imagen del frontend.
+3. `Infrastructure Deploy`: valida Terraform y deja preparado el despliegue manual a Azure.
+
+Los pipelines de backend y frontend corren cuando cambian archivos de sus carpetas. El pipeline de infraestructura corre cuando cambia `infra/` y tambien puede ejecutarse manualmente.
+
+El despliegue a Azure queda como ejecucion manual desde `workflow_dispatch`, porque requiere credenciales de Azure.
 
 Para habilitar despliegue automatico desde GitHub Actions, configura el secreto `AZURE_CREDENTIALS` en el repositorio con un service principal:
 
@@ -210,7 +218,7 @@ az ad sp create-for-rbac \
   --sdk-auth
 ```
 
-El workflow valida backend, frontend y Terraform. En `main` construye y sube imagenes a `acrazurebibliotecadev`, y despliega ACI con la etiqueta del commit.
+El pipeline de infraestructura puede construir y subir imagenes a `acrazurebibliotecadev`, y desplegar ACI con la etiqueta del commit cuando exista el secreto `AZURE_CREDENTIALS`.
 
 Si tu tenant no permite crear service principals y aparece `Insufficient privileges to complete the operation`, usa el despliegue manual con `az login` desde WSL. Ese metodo funciona con tu usuario interactivo y no necesita `AZURE_CREDENTIALS`.
 

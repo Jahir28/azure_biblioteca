@@ -106,7 +106,9 @@ Si ya creaste recursos manualmente en Azure con los mismos nombres, importalos a
 
 ## GitHub Actions
 
-Configura el secreto `AZURE_CREDENTIALS` en el repositorio con un service principal:
+El workflow ejecuta validacion en cada `push` y `pull_request`. El despliegue a Azure queda como ejecucion manual desde `workflow_dispatch`, porque requiere credenciales de Azure.
+
+Para habilitar despliegue automatico desde GitHub Actions, configura el secreto `AZURE_CREDENTIALS` en el repositorio con un service principal:
 
 ```bash
 az ad sp create-for-rbac \
@@ -117,6 +119,8 @@ az ad sp create-for-rbac \
 ```
 
 El workflow valida backend, frontend y Terraform. En `main` construye y sube imagenes a `acrazurebibliotecadev`, y despliega ACI con la etiqueta del commit.
+
+Si tu tenant no permite crear service principals y aparece `Insufficient privileges to complete the operation`, usa el despliegue manual con `az login` desde WSL. Ese metodo funciona con tu usuario interactivo y no necesita `AZURE_CREDENTIALS`.
 
 ## Validacion local recomendada
 

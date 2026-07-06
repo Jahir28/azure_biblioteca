@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  `${window.location.protocol}//${window.location.hostname || 'localhost'}:8000`
+  '/api'
 
 const metrics = ref({})
 const books = ref([])

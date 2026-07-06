@@ -6,6 +6,12 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/biblioteca.db")
 
+if DATABASE_URL.startswith("sqlite:///"):
+    database_path = DATABASE_URL.replace("sqlite:///", "", 1)
+    database_dir = os.path.dirname(database_path)
+    if database_dir:
+        os.makedirs(database_dir, exist_ok=True)
+
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
